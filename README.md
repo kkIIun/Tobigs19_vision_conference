@@ -1,5 +1,5 @@
 # Tobigs19_vision_conference
-![input](./figure/man.jepg)
+![input](./figure/man.jpeg)
 prompt: a man in office
 ![output](./result/a_man_in_office.png)
 
