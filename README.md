@@ -10,3 +10,9 @@ prompt: a man in office
 
 ## Getting Started
 <pre><code>python main.py --input_img <your test image path> --text_prompt <your text prompt></code></pre>
+
+## Gradio demo
+Demo UI built with gradio
+```python app_gradio.py```
+-To generate a public link, add ```--public_link```
+-To use postprocessing, add ```--postprocessing```
