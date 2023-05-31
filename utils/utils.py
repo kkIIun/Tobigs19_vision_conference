@@ -16,7 +16,7 @@ def resize_and_pad(image: np.ndarray, target_size: int = 512):
     bottom_pad = pad_height - top_pad
     left_pad = pad_width // 2
     right_pad = pad_width - left_pad
-    image_padded = np.pad(image_resized, ((top_pad, bottom_pad), (left_pad, right_pad), (0, 0)), mode='constant') 
+    image_padded = np.pad(image_resized, ((top_pad, bottom_pad), (left_pad, right_pad), (0, 0)), mode='constant')
     return image_padded, (top_pad, bottom_pad, left_pad, right_pad)
 
 def recover_size(image_padded: np.ndarray, mask_padded: np.ndarray, orig_size: Tuple[int, int], 
