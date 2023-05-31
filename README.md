@@ -13,6 +13,7 @@ prompt: a man in office
 
 ## Gradio demo
 Demo UI built with gradio
+![gradio](./figure/gradio_result.png)
 ```python app_gradio.py```
 -To generate a public link, add ```--public_link```
 -To use postprocessing, add ```--postprocessing```
