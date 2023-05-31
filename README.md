@@ -1,4 +1,7 @@
 # Tobigs19_vision_conference
+![input](./figure/man.jepg)
+prompt: a man in office
+![output](./result/a_man_in_office.png)
 
 ## Installation
 1. please download segment anything pretrain model at https://github.com/facebookresearch/segment-anything
