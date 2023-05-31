@@ -1,88 +1,77 @@
 from segment_anything import SamAutomaticMaskGenerator, sam_model_registry, SamPredictor
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 from diffusers import StableDiffusionInpaintPipeline
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
 from torchvision.utils import save_image
 from PIL import Image
+from utils import resize_and_pad, recover_size, save_image_mask
+import cv2
+import argparse
+import sys
+sys.path.append('/home/labuser/work/tobigs/yolov7') # modify your 'yolov7' directory
+from yolov7.utils.plots import plot_one_box
+from yolov7.models.experimental import attempt_load
+from yolov7.utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier, \
+    scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 
-# 이미지 전처리 작업을 정의
-preprocess = T.Compose([
-    T.ToTensor(),
-    T.Normalize(mean=0.5,std=0.5)
-])
+def setup_args(parser):
+    parser.add_argument(
+        "--input_img", type=str, required=True,
+        help="Path to a single input img",
+    )
+    parser.add_argument(
+        "--text_prompt", type=str, required=True,
+        help="Text prompt",
+    )
 
-def save_total_anns(anns, image):
-    if len(anns) == 0:
-        return
-    sorted_anns = sorted(anns, key=(lambda x: x['area']), reverse=True)
-    ax = plt.gca()
-    ax.set_autoscale_on(False)
-    polygons = []
-    color = []
-    total_masks = None
-    for j, ann in enumerate(sorted_anns):
-        m = ann['segmentation']
-        img = np.ones((m.shape[0], m.shape[1], 3))
-        color_mask = np.random.random((1, 3)).tolist()[0]
-        for i in range(3):
-            img[:,:,i] = color_mask[i]
-        if total_masks is None:
-            total_masks = img
-        else:
-            total_masks[np.where(m>0)] = img[np.where(m>0)]
-        # ax.imshow(np.dstack((img, m*0.35)))
-    result = total_masks*0.35 + image*0.65
-    plt.imsave('total_mask.png', result)
-
-def save_anns(masks, image):
-    total_masks = None
-    sorted_masks = sorted(masks, key=(lambda x: np.sum(x)), reverse=True)
-    for j, mask in enumerate(sorted_masks):
-        m = mask
-        img = np.ones((m.shape[0], m.shape[1], 3))
-        color_mask = np.random.random((1, 3)).tolist()[0]
-        for i in range(3):
-            img[:,:,i] = color_mask[i]
-        if total_masks is None:
-            total_masks = img*m[...,np.newaxis]
-        else:
-            total_masks[np.where(m>0)] = img[np.where(m>0)]
-    result = total_masks*0.5 + image*0.5
-    plt.imsave('sub_mask.png', result)
-
-def main():
-    image = np.array(Image.open('./test.jpeg').convert('RGB').resize((512,512)))
+def main(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    # load image and preprocessing
+    org_image = np.array(Image.open(args.input_img).convert('RGB'))    
+    org_image, padding_factors = resize_and_pad(org_image)
+    image = org_image.transpose(2,0,1)[None,...]
+    image = torch.Tensor(image/255.0).to(device)
+    
+    # yolov7 
+    model=attempt_load('yolov7-e6e.pt', map_location=device)
+    preds=model(image)[0]
+    preds=preds[...,:6]   # only person class select
+    preds = non_max_suppression(preds, 0.9, 0.9, classes=None, agnostic=False)[0].detach().cpu().numpy()
+    plot_image = org_image.copy()
+    for pred in preds:
+        xyxy = pred[:4]
+        plot_one_box(xyxy, plot_image)
+    cv2.imwrite('./result/bounding_box_image.jpg', plot_image[:,:,::-1])
+
+    # segment-anything
     sam = sam_model_registry["vit_h"](checkpoint="./sam_vit_h_4b8939.pth").to(device)
     predictor = SamPredictor(sam)
-    predictor.set_image(image)
-    input_point = np.array([[250, 250], [250, 400], [220, 170], [100, 100], [100, 400], [450, 100], [480, 480]])
-    input_label = np.array([1, 1, 1, 0, 0, 0 ,0])
-    # mask_generator = SamAutomaticMaskGenerator(sam)
-    # masks = mask_generator.generate(image)
+    predictor.set_image(org_image)
     masks, _, _ = predictor.predict(
-        point_coords=input_point,
-        point_labels=input_label,
+        point_coords=None,
+        point_labels=None,
+        box=preds[0,:4],
         multimask_output=False,
     )
-    # masks = ~masks
-    image = image.astype(np.float32)/255.0
-    save_anns(masks, image)
-    image = preprocess(image)
-    masks = torch.Tensor(masks)
+    masks = masks.astype(np.uint8) * 255
+    save_image_mask(org_image, masks)
+    mask = masks[0]
+
+    # stable-diffusion
     pipe = StableDiffusionInpaintPipeline.from_pretrained(
         "stabilityai/stable-diffusion-2-inpainting",
         torch_dtype=torch.float32,
-    )
-    pipe.to("cuda")
-    prompt = "A handsome man is smiling on the railroad in winter."
-    save_image(masks, 'mask.png')
-    image = pipe(prompt=prompt, image=image, mask_image=masks).images[0]
-    save_path = './' + prompt.replace(' ', '_') + '.png'
-    image.save(save_path)
+    ).to("cuda")
+    prompt = args.text_prompt
+    image = pipe(prompt=prompt, image=Image.fromarray(org_image), mask_image=Image.fromarray(255-mask)).images[0]
+    save_path = './result/' + prompt.replace(' ', '_') + '.png'
+    image.save(save_path)    
 
-if __name__ = "__main__":
-    main()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    setup_args(parser)
+    args = parser.parse_args()
+    main(args)
+    
