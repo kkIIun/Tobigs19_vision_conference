@@ -10,7 +10,7 @@ from utils import resize_and_pad, recover_size, save_image_mask
 import cv2
 import argparse
 import sys
-sys.path.append('/home/labuser/work/tobigs/yolov7') # modify your 'yolov7' directory
+sys.path.append('./yolov7') # modify your 'yolov7' directory
 from yolov7.utils.plots import plot_one_box
 from yolov7.models.experimental import attempt_load
 from yolov7.utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier, \
@@ -35,7 +35,7 @@ def main(args):
     image = torch.Tensor(image/255.0).to(device)
     
     # yolov7 
-    model=attempt_load('yolov7-e6e.pt', map_location=device)
+    model=attempt_load('./model_checkpoints/yolov7-e6e.pt', map_location=device)
     preds=model(image)[0]
     preds=preds[...,:6]   # only person class select
     preds = non_max_suppression(preds, 0.9, 0.9, classes=None, agnostic=False)[0].detach().cpu().numpy()
@@ -46,7 +46,7 @@ def main(args):
     cv2.imwrite('./result/bounding_box_image.jpg', plot_image[:,:,::-1])
 
     # segment-anything
-    sam = sam_model_registry["vit_h"](checkpoint="./sam_vit_h_4b8939.pth").to(device)
+    sam = sam_model_registry["vit_h"](checkpoint="./model_checkpoints/sam_vit_h_4b8939.pth").to(device)
     predictor = SamPredictor(sam)
     predictor.set_image(org_image)
     masks, _, _ = predictor.predict(
