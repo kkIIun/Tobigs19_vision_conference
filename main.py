@@ -38,7 +38,7 @@ def main(args):
     model=attempt_load('yolov7-e6e.pt', map_location=device)
     preds=model(image)[0]
     preds=preds[...,:6]   # only person class select
-    preds = non_max_suppression(preds, 0.9, 0.9, classes=None, agnostic=False)[0].detach().cpu().numpy()
+    preds = non_max_suppression(preds, 0.7, 0.7, classes=None, agnostic=False)[0].detach().cpu().numpy()
     plot_image = padded_image.copy()
     for pred in preds:
         xyxy = pred[:4]
@@ -66,8 +66,10 @@ def main(args):
     ).to("cuda")
     prompt = args.text_prompt
     image = pipe(prompt=prompt, image=Image.fromarray(padded_image), mask_image=Image.fromarray(255-mask)).images[0]
-    image = recover_size(np.array(image), (org_image.shape[0], org_image.shape[1]), padding_factors)
-    image = Image.fromarray(image)
+    image, mask = recover_size(np.array(image), mask, (org_image.shape[0], org_image.shape[1]), padding_factors)
+    mask = np.expand_dims(mask, -1) / 255
+    image = org_image*mask + image*(1-mask)
+    image = Image.fromarray(image.astype(np.uint8))
     save_path = './result/' + prompt.replace(' ', '_') + '.png'
     image.save(save_path)  
 

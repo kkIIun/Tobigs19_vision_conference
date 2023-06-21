@@ -19,13 +19,15 @@ def resize_and_pad(image: np.ndarray, target_size: int = 512):
     image_padded = np.pad(image_resized, ((top_pad, bottom_pad), (left_pad, right_pad), (0, 0)), mode='constant')
     return image_padded, (top_pad, bottom_pad, left_pad, right_pad)
 
-def recover_size(image_padded: np.ndarray, orig_size: Tuple[int, int], 
+def recover_size(image_padded: np.ndarray, mask_padded: np.ndarray, orig_size: Tuple[int, int], 
                  padding_factors: Tuple[int, int, int, int]):
     h,w,c = image_padded.shape
     top_pad, bottom_pad, left_pad, right_pad = padding_factors
     image = image_padded[top_pad:h-bottom_pad, left_pad:w-right_pad, :]
+    mask = mask_padded[top_pad:h-bottom_pad, left_pad:w-right_pad]
     image_resized = cv2.resize(image, orig_size[::-1], interpolation=cv2.INTER_LINEAR)
-    return image_resized
+    mask_resized = cv2.resize(mask, orig_size[::-1], interpolation=cv2.INTER_LINEAR)
+    return image_resized, mask_resized
 
 def save_image_mask(image, masks):
     image = image/255.0
