@@ -30,25 +30,25 @@ def main(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     # load image and preprocessing
     org_image = np.array(Image.open(args.input_img).convert('RGB'))    
-    org_image, padding_factors = resize_and_pad(org_image)
-    image = org_image.transpose(2,0,1)[None,...]
+    padded_image, padding_factors = resize_and_pad(org_image)
+    image = padded_image.transpose(2,0,1)[None,...]
     image = torch.Tensor(image/255.0).to(device)
     
     # yolov7 
-    model=attempt_load('./model_checkpoints/yolov7-e6e.pt', map_location=device)
+    model=attempt_load('yolov7-e6e.pt', map_location=device)
     preds=model(image)[0]
     preds=preds[...,:6]   # only person class select
     preds = non_max_suppression(preds, 0.9, 0.9, classes=None, agnostic=False)[0].detach().cpu().numpy()
-    plot_image = org_image.copy()
+    plot_image = padded_image.copy()
     for pred in preds:
         xyxy = pred[:4]
         plot_one_box(xyxy, plot_image)
     cv2.imwrite('./result/bounding_box_image.jpg', plot_image[:,:,::-1])
 
     # segment-anything
-    sam = sam_model_registry["vit_h"](checkpoint="./model_checkpoints/sam_vit_h_4b8939.pth").to(device)
+    sam = sam_model_registry["vit_h"](checkpoint="./sam_vit_h_4b8939.pth").to(device)
     predictor = SamPredictor(sam)
-    predictor.set_image(org_image)
+    predictor.set_image(padded_image)
     masks, _, _ = predictor.predict(
         point_coords=None,
         point_labels=None,
@@ -56,7 +56,7 @@ def main(args):
         multimask_output=False,
     )
     masks = masks.astype(np.uint8) * 255
-    save_image_mask(org_image, masks)
+    save_image_mask(padded_image, masks)
     mask = masks[0]
 
     # stable-diffusion
@@ -65,9 +65,11 @@ def main(args):
         torch_dtype=torch.float32,
     ).to("cuda")
     prompt = args.text_prompt
-    image = pipe(prompt=prompt, image=Image.fromarray(org_image), mask_image=Image.fromarray(255-mask)).images[0]
+    image = pipe(prompt=prompt, image=Image.fromarray(padded_image), mask_image=Image.fromarray(255-mask)).images[0]
+    image = recover_size(np.array(image), (org_image.shape[0], org_image.shape[1]), padding_factors)
+    image = Image.fromarray(image)
     save_path = './result/' + prompt.replace(' ', '_') + '.png'
-    image.save(save_path)    
+    image.save(save_path)  
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
