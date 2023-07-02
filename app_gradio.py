@@ -9,7 +9,7 @@ from yolov7.models.experimental import attempt_load
 from segment_anything import sam_model_registry, SamPredictor
 from diffusers import StableDiffusionInpaintPipeline
 from utils import resize_and_pad, recover_size, save_image_mask
-from utils.gradio import predict_box_with_yolo, predict_mask_with_sam
+from utils.functions import predict_box_with_yolo, predict_mask_with_sam
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description="Tobigs-19 Vision Conference")
@@ -17,8 +17,6 @@ if __name__=='__main__':
     parser.add_argument('--yolo_path', default='./model_checkpoints/yolov7-e6e.pt')
     
     parser.add_argument('--sam_path',  default='./model_checkpoints/sam_vit_h_4b8939.pth')
-    
-    parser.add_argument('--postprocessing', action='store_true', default=False)
     
     parser.add_argument('--public_link', action='store_true', default=False)
     args = parser.parse_args()
@@ -68,16 +66,13 @@ if __name__=='__main__':
                 mask = predict_mask_with_sam(sam_predictor, image_padded, box)
                 #stable diffusion
                 image_inpainted = pipe(prompt=text_prompt, image=Image.fromarray(image_padded), mask_image=Image.fromarray(255-mask)).images[0]
+                
                 #postprocessing
-                if args.postprocessing:
-                    height, width, _ = org_image.shape
-                    image_resized, mask_resized = recover_size(np.array(image_inpainted), mask, (height, width), padding_factors)
-                    mask_resized = np.expand_dims(mask_resized, -1) / 255
-                    image_resized = image_resized * (1-mask_resized) + org_image * mask_resized
-                    image_resized = image_resized.astype(np.uint8)
-                    return image_resized
-                else:
-                    return image_inpainted
+                height, width, _ = org_image.shape
+                image_resized, mask_resized = recover_size(np.array(image_inpainted), mask, (height, width), padding_factors)
+                mask_resized = np.expand_dims(mask_resized, -1) / 255
+                image_resized = image_resized * (1-mask_resized) + org_image * mask_resized
+                image_resized = image_resized.astype(np.uint8)
             generate_btn.click(fn=on_generate_clicked,
                             inputs=[input_img, text_prompt],
                             outputs=output_img)
