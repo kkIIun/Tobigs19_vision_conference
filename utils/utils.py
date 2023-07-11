@@ -3,7 +3,7 @@ import numpy as np
 from typing import Tuple
 import matplotlib.pyplot as plt
 
-def resize_and_pad(image: np.ndarray, target_size: int = 512):
+def resize_and_pad(image: np.ndarray, target_size: int = 512, ismask=False):
     height, width, _ = image.shape
     max_dim = max(height, width)
     scale = target_size / max_dim
@@ -16,7 +16,8 @@ def resize_and_pad(image: np.ndarray, target_size: int = 512):
     bottom_pad = pad_height - top_pad
     left_pad = pad_width // 2
     right_pad = pad_width - left_pad
-    image_padded = np.pad(image_resized, ((top_pad, bottom_pad), (left_pad, right_pad), (0, 0)), mode='constant')
+    constant_value = 1 if ismask else 0
+    image_padded = np.pad(image_resized, ((top_pad, bottom_pad), (left_pad, right_pad), (0, 0)), mode='constant', constant_values=constant_value)
     return image_padded, (top_pad, bottom_pad, left_pad, right_pad)
 
 def recover_size(image_padded: np.ndarray, mask_padded: np.ndarray, orig_size: Tuple[int, int], 
